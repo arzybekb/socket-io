@@ -1,28 +1,42 @@
 const express = require("express");
 const app = express();
-const http = require("http").Server(app);
 const cors = require("cors");
-
-const chatRoutes = require("./routes/chat");
-
+const http = require("http").Server(app);
 const PORT = 4000;
-
-app.use(cors());
-app.use(chatRoutes);
+const chatRoutes = require("./routes/chat");
 
 const socketIO = require("socket.io")(http, {
   cors: {
-    origin: "http://localhost:3001",
+    origin: "*",
   },
 });
 
+app.use(cors());
+
+let users = [];
+
 socketIO.on("connection", (socket) => {
   console.log(`⚡: ${socket.id} user just connected!`);
+  socket.on("message", (data) => {
+    socketIO.emit("messageResponse", data);
+  });
+
+  socket.on("typing", (data) => socket.broadcast.emit("typingResponse", data));
+
+  socket.on("newUser", (data) => {
+    users.push(data);
+    socketIO.emit("newUserResponse", users);
+  });
+
   socket.on("disconnect", () => {
     console.log("🔥: A user disconnected");
+    users = users.filter((user) => user.socketID !== socket.id);
+    socketIO.emit("newUserResponse", users);
+    socket.disconnect();
   });
 });
+app.use(chatRoutes);
 
-app.listen(PORT, () => {
+http.listen(PORT, () => {
   console.log(`Server listening on ${PORT}`);
 });
